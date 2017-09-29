@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta HTTP-EQUIV="PRAGMA" CONTENT="NO-CACHE">
+  <title>Document Summarizer</title>
+
+  <style>
+
+    #inputDiv{
+      position: relative;
+    }
+
+    #status {
+      font-style: italic;
+      font-size: small;
+    }
+
+ 
+    #detected-intention {
+      margin-top: 45px;
+    }
+
+  </style>
+</head>
+<body onload="onBodyLoad();">
+<div id="controls">
+  <div id="inputDiv">
+    <span id="status">Status: <span id="statusText"></span></span><br/>
+    Query: <input id="query" name="query" size="50" oninput="return onInputChanged(event)" onkeypress="return onInputKeyPress(event)"></input>
+    <br/>
+    Size of the summary:<br/>
+    <input type="radio" id="summarySizeCountR" name="summarySize" value="count" checked="checked"><input id="summarySizeCount" size="2" value="5" onkeypress="return onInputKeyPress(event)"/> sentences<br>
+  	<input type="radio" id="summarySizePercentR" name="summarySize" value="percent"><input id="summarySizePercent" size="2" value="25" onkeypress="return onInputKeyPress(event)"/>% of text size in chars<br>
+    <br/>
+    Order of sentences in the the summary:<br/>
+    <input type="radio" id="orderOfSentencesByPositionInText" name="orderOfSentences" value="byPosition" checked="checked"> by position in the article<br>
+  	<input type="radio" id="orderOfSentencesByRelevance" name="orderOfSentences" value="byRelevance"> by relevance<br>
+    <br/>
+    Title strength: <input id="titleStrength" size="10" value="1" onkeypress="return onInputKeyPress(event)"/>
+    <br/>
+    Boost sentences by position in the text: <input type="checkbox" id=boostByPosition> 
+    <br/><br/>
+<!--     <input type="button" value="Reset input" onclick=resetInput()><br/><br/> -->
+    <input id="mainButton" type="button" value="Summarize" onclick=processCompletedInput()>
+    <br/>
+  </div>
+</div>
+<br/>
+<div id="response"></div><br/>
+<script>
+
+  var decodeEntities = (function() {
+    // this prevents any overhead from creating the object each time
+    var element = document.createElement('div');
+
+    function decodeHTMLEntities (str) {
+      if (str && typeof str === 'string') {
+        // strip script/html tags
+        str = str.replace(/<script[^>]*>([\S\s]*?)<\/script>/gmi, '');
+        str = str.replace(/<\/?\w(?:[^"'>]|"[^"]*"|'[^']*')*>/gmi, '');
+        element.innerHTML = str;
+        str = element.textContent;
+        element.textContent = '';
+      }
+
+      return str;
+    }
+
+    return decodeHTMLEntities;
+  })();
+
+ 
+  var host=window.location.protocol + "//" + window.location.host;    
+  
+   
+
+  // input text is commited by pressing Enter key or by clicking main button
+  function processCompletedInput() {
+    sendUserInputToExternalService();
+  }
+    
+  function sendUserInputToExternalService() {
+    sendAnalyzerRequest();
+    showStatus("Thinking...");
+  }
+
+  function buildUrl(relativeUrl) {
+    var url = host;
+    url += "/" + relativeUrl;
+    // add timestamp to prevent caching
+    url += "&timestamp=" + new Date().getTime();
+    console.log(url);
+    return url;
+  }
+
+  function resetInput() {
+    var input = document.all("query");
+    input.value="";
+  }
+
+  
+
+  /**
+   * Send a service request given a relativeUrl
+   *
+   * @param string relativeUrl
+   * @param string username Optional
+   * @param string passwd Optional
+   * @param function callbackFunction
+   *
+   */
+  function sendServiceRequest(relativeUrl, callbackFunction) {
+    document.body.style.cursor = 'wait';
+    var xhr = new XMLHttpRequest();
+    var url = buildUrl(relativeUrl);
+
+
+    xhr.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+        	callbackFunction(xhr.responseText);
+        	document.body.style.cursor = 'default';
+        }
+        else{
+        	showStatus(xhr.statusText);
+        	document.body.style.cursor = 'default';
+        }
+    };
+    xhr.onerror = function (e) {
+        showStatus(xhr.statusText);
+        document.body.style.cursor = 'default';
+    };
+    xhr.onloadend = function() {
+        if(xhr.status == 404){
+        	showStatus("Document not found");
+            console.log("Document not found");
+            document.body.style.cursor = 'default';
+            var history = document.all('response');
+            history.innerHTML ="";
+        } 
+    }
+    xhr.open("GET", url, true);
+    xhr.send();
+  }
+
+  
+  function sendAnalyzerRequest() {
+	var query = document.all('query').value;
+	var summarySize;
+	if (document.all('summarySizeCountR').checked)
+		summarySize=document.all('summarySizeCount').value;
+	else
+		summarySize=document.all('summarySizePercent').value+'%';
+	var orderOfSentences='byPosition';
+	if (document.all('orderOfSentencesByRelevance').checked)
+		orderOfSentences='byRelevance';
+	var titleStrength = document.all('titleStrength').value;
+	var boostByPosition = document.all('boostByPosition').checked;
+	var url="document-summarizer/summarize?";
+	url+="&summary_size="+encodeURIComponent(summarySize);
+	url+="&title_strength="+encodeURIComponent(titleStrength);
+	url+="&boost_by_position="+boostByPosition;
+	url+="&order_of_sentences="+orderOfSentences;
+	url+="&query="+query;
+	sendServiceRequest(url, showResponse);
+  }
+  
+   
+  function showResponse(jsonResponse) {
+	  var history = document.all('response');
+//	  history.innerHTML =jsonResponse;
+ 	  var summaryFormatted=formatMDSummary(jsonResponse);
+ 	  history.innerHTML =summaryFormatted;
+ 	  console.log(summaryFormatted);
+	  mainButton.disabled=false;
+	  showStatus('Ready');
+  }
+
+  function showStatus(statusText) {
+    var status = document.getElementById('statusText');
+    status.textContent = statusText;
+  }
+
+  function showAnswer(formattedAnswer) {
+    var history = document.all('response');
+    var responseText = formattedAnswer;
+    history.innerHTML = responseText + "<br />";
+    showStatus('Ready for your input');
+    //resetInput();
+    setInputFocus();
+  }
+  
+  
+
+  function formatMDSummary(jsonResponse) {
+    var obj = JSON.parse(jsonResponse);
+	//var response='<B>'+obj.summaryText+'</B> <span style="color:black"><br/><br/>';
+	var response=obj.summaryText;
+ 	//response+= '<pre>'+JSON.stringify(obj, null, 2)+'</pre>';
+	return response;
+  }
+
+  
+  
+  function formatUserInput(textInput) {
+    return 'Input: <span style="color:blue">' + textInput + '</span>';
+  }
+
+ 
+  function onInputChanged(e){
+  }
+  
+ 
+  function onInputKeyPress(e) {
+    if (e.keyCode == 13) {
+      processCompletedInput()
+      return false;
+    }
+  }
+
+  function setInputFocus() {
+    var input = document.all('query');
+    input.focus();
+  }
+
+  function onBodyLoad() {
+	  var input = document.all('query');
+	  input.value="What's our alcohol policy?";
+	  showStatus('Ready.');
+	  setInputFocus();
+  }
+  
+    
+
+  //IE does not know about the target attribute. It looks for srcElement
+  //This function will get the event target in a browser-compatible way
+  function getEventTarget(e) {
+    e = e || window.event;
+    return e.target || e.srcElement;
+  }
+
+  
+
+</script>
+</body>
+</html>

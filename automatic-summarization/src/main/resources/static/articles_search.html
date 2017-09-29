@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta HTTP-EQUIV="PRAGMA" CONTENT="NO-CACHE">
+<title>Search</title>
+
+<style>
+#inputDiv {
+	position: relative;
+}
+
+#status {
+	font-style: italic;
+	font-size: small;
+}
+
+#detected-intention {
+	margin-top: 45px;
+}
+</style>
+</head>
+<body onload="onBodyLoad();">
+	<div id="controls">
+		<div id="inputDiv">
+			<span id="status">Status: <span id="statusText"></span></span><br />
+			Search text: <input id="textToAnalyze" name="textToAnalyze" size="30"
+				oninput="return onInputChanged(event)"
+				onkeypress="return onInputKeyPress(event)" autofocus></input> 
+				
+			<!--     <input type="button" value="Reset input" onclick=resetInput()><br/><br/> -->
+			<input id="mainButton" type="button" value="Search"
+				onclick=processCompletedInput()> <br />
+		</div>
+	</div>
+	<br />
+	<div id="response"></div>
+	<br />
+	<script>
+
+  var decodeEntities = (function() {
+    // this prevents any overhead from creating the object each time
+    var element = document.createElement('div');
+
+    function decodeHTMLEntities (str) {
+      if (str && typeof str === 'string') {
+        // strip script/html tags
+        str = str.replace(/<script[^>]*>([\S\s]*?)<\/script>/gmi, '');
+        str = str.replace(/<\/?\w(?:[^"'>]|"[^"]*"|'[^']*')*>/gmi, '');
+        element.innerHTML = str;
+        str = element.textContent;
+        element.textContent = '';
+      }
+
+      return str;
+    }
+
+    return decodeHTMLEntities;
+  })();
+ 
+  var host=window.location.protocol + "//" + window.location.host;    
+  
+  // input text is commited by pressing Enter key or by clicking main button
+  function processCompletedInput() {
+    sendUserInputToExternalService();
+  }
+    
+  function sendUserInputToExternalService() {
+    sendAnalyzerRequest();
+    showStatus("Thinking...");
+  }
+
+  function buildUrl(relativeUrl) {
+    var url = host;
+    url += "/" + relativeUrl;
+    // add timestamp to prevent caching
+    url += "&timestamp=" + new Date().getTime();
+    console.log(url);
+    return url;
+  }
+
+  function resetInput() {
+    var input = document.all("textToAnalyze");
+    input.value="";
+  }
+
+  /**
+   * Send a service request given a relativeUrl
+   *
+   * @param string relativeUrl
+   * @param string username Optional
+   * @param string passwd Optional
+   * @param function callbackFunction
+   *
+   */
+  function sendServiceRequest(relativeUrl, callbackFunction) {
+    document.body.style.cursor = 'wait';
+    var xhr = new XMLHttpRequest();
+    var url = buildUrl(relativeUrl);
+
+
+    xhr.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+        	callbackFunction(xhr.responseText);
+        	document.body.style.cursor = 'default';
+        }
+        else{
+        	showStatus(xhr.statusText);
+        	document.body.style.cursor = 'default';
+        }
+    };
+    xhr.onerror = function (e) {
+        showStatus(xhr.statusText);
+        document.body.style.cursor = 'default';
+    };
+    xhr.onloadend = function() {
+        if(xhr.status == 404){
+        	showStatus("Document not found");
+            console.log("Document not found");
+            document.body.style.cursor = 'default';
+            var history = document.all('response');
+            history.innerHTML ="";
+        } 
+    }
+    xhr.open("GET", url, true);
+    xhr.send();
+  }
+
+  
+  function sendAnalyzerRequest() {
+	var inputText = document.all('textToAnalyze').value;
+	var url="document-summarizer/summarize/articles_search?";
+	url+="search_query="+encodeURIComponent(inputText);
+	sendServiceRequest(url, showResponse);
+  }
+   
+  function showResponse(jsonResponse) {
+	  var history = document.all('response');
+//	  history.innerHTML =jsonResponse;
+ 	  var input = document.all('textToAnalyze');
+ 	  var features=formatSummarizedDocument(jsonResponse);
+ 	  history.innerHTML =features;
+	  mainButton.disabled=false;
+	  showStatus('Ready');
+  }
+
+  function showStatus(statusText) {
+    var status = document.getElementById('statusText');
+    status.textContent = statusText;
+  }
+
+  function showAnswer(formattedAnswer) {
+    var input = document.all('textToAnalyze');
+    var userInput = formatUserInput(input.value);
+    var history = document.all('response');
+    var responseText = formattedAnswer;
+    history.innerHTML = responseText + "<br />";
+    showStatus('Ready for your input');
+    //resetInput();
+    setInputFocus();
+  }
+  
+  function formatSummarizedDocument(jsonResponse) {
+	console.log(jsonResponse);
+    var obj = JSON.parse(jsonResponse);
+	response='<B>Found articles:</B><br/><br/>';
+   	obj.forEach(function(a){
+   		response+='<B>'+a.article_title+ '</B><br/>';  
+   		response+='<I>'+a.id+ '</I><br/>';
+   		response+= a.article_text.replace("\n","<br/>") + '<br/><br/>';
+  		});
+ 
+ 	return response;	   
+  }
+  
+  function formatUserInput(textInput) {
+    return 'Input: <span style="color:blue">' + textInput + '</span>';
+  }
+ 
+  function onInputChanged(e){
+  }
+
+  function onInputKeyPress(e) {
+    if (e.keyCode == 13) {
+      processCompletedInput()
+      return false;
+    }
+  }
+
+  function setInputFocus() {
+    var input = document.all('textToAnalyze');
+    input.focus();
+  }
+
+  function onBodyLoad() {
+	 	showStatus('Ready.');
+	 	var input = document.all("textToAnalyze");
+	    input.value="";
+		setInputFocus();
+  }
+  
+    
+
+  //IE does not know about the target attribute. It looks for srcElement
+  //This function will get the event target in a browser-compatible way
+  function getEventTarget(e) {
+    e = e || window.event;
+    return e.target || e.srcElement;
+  }
+
+  
+
+</script>
+</body>
+</html>
