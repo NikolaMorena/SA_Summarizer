@@ -76,7 +76,7 @@ public class SentencesChunksDetection extends JCasAnnotator_ImplBase {
 			sc.addToIndexes();
 			
 			if (isDependent){
-				logger.info("New multisentence chunk: " + sc.getCoveredText());
+				logger.debug("New multisentence chunk: " + sc.getCoveredText());
 			}
 			
 

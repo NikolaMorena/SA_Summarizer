@@ -10,6 +10,8 @@ public class SummarizedDocument {
 	private String manualSummary;
 	private String summary;
 	private List<String> keywords= new ArrayList<>();
+	private float bestSentenceScore;
+	private float cummulativeScore;
 	public String getId() {
 		return id;
 	}
@@ -46,5 +48,16 @@ public class SummarizedDocument {
 	public void setKeywords(List<String> keywords) {
 		this.keywords = keywords;
 	}
-
+	public float getBestSentenceScore() {
+		return bestSentenceScore;
+	}
+	public void setBestSentenceScore(float bestSentenceScore) {
+		this.bestSentenceScore = bestSentenceScore;
+	}
+	public float getCummulativeScore() {
+		return cummulativeScore;
+	}
+	public void setCummulativeScore(float cummulativeScore) {
+		this.cummulativeScore = cummulativeScore;
+	}
 }

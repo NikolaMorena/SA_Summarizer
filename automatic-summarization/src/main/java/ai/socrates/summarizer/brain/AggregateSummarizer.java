@@ -1,6 +1,7 @@
 package ai.socrates.summarizer.brain;
 
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -22,6 +23,12 @@ import ai.socrates.summarizer.utils.Misc;
 public class AggregateSummarizer {
 	private static final Logger logger =LoggerFactory.getLogger(AggregateSummarizer.class);
 	CoreNLPUIMA coreNLP;
+	Map<ISummarizer, Float> summarizers=null;
+	
+	public AggregateSummarizer(Map<ISummarizer, Float> summarizers){
+		this.summarizers=summarizers;
+	}
+	
 	
 	public SummarizedDocument getSummary(Article article, String query, String summarySize, int titleStrength, boolean boostByOrder, String orderOfSentences){
 		SummarizedDocument ret = null;
@@ -37,47 +44,87 @@ public class AggregateSummarizer {
 			jcas=doNLP(text);
 			if (!query.isEmpty())
 				jcasQ=doNLP(query);
-			RelevanceSummarizer rm= new RelevanceSummarizer();
-			Map<SentencesChunkAnnotation, Double> relevanceSummarizerScores=rm.summarize(jcas, jcasQ, titleStrength);
-			if (boostByOrder){
-				PositionSummarizer positionSummarizer= new PositionSummarizer();
-				Map<SentencesChunkAnnotation, Double> positionSummarizerScores= positionSummarizer.summarize(jcas, jcasQ, titleStrength);
-				for(SentencesChunkAnnotation sa:relevanceSummarizerScores.keySet()){
-					Double relevanceScore=relevanceSummarizerScores.get(sa);
-					Double positionScore=positionSummarizerScores.get(sa);
-					Double updatedScore=(relevanceScore*2+positionScore)/3f;
-					relevanceSummarizerScores.put(sa, updatedScore);
-				}
-				relevanceSummarizerScores=Misc.sortByValue(relevanceSummarizerScores);
+			
+			if (summarizers==null){
+				logger.error("Summarizers not initialized");
+				return ret;
 			}
 			
-			List<SentencesChunkAnnotation> summarySentences;
+			float cummulativeWeight=0;
+			for(Float sWeight: summarizers.values()){
+				cummulativeWeight+=sWeight;
+			}
+			if (cummulativeWeight==0){
+				logger.error("Cummulative weight of summarizers is 0");
+				return ret;
+			}
+			
+			List<String> keywords=null;
+			Map<SentencesChunkAnnotation, Float> cummulativeScores= new LinkedHashMap<>();
+			for(ISummarizer summarizer:summarizers.keySet()){
+				float summarizerWeightFactor=summarizers.get(summarizer)/cummulativeWeight;
+				Map<SentencesChunkAnnotation, Float> summarizerScores=summarizer.summarize(jcas, jcasQ, titleStrength);
+				for(SentencesChunkAnnotation sca: summarizerScores.keySet()){
+					if (cummulativeScores.containsKey(sca)){
+						if (!summarizer.isBoosterOnly() || cummulativeScores.get(sca)>0)
+							cummulativeScores.put(sca, cummulativeScores.get(sca)+summarizerScores.get(sca)*summarizerWeightFactor);
+					}
+					else{
+						if (!summarizer.isBoosterOnly()){
+							cummulativeScores.put(sca, summarizerScores.get(sca)*summarizerWeightFactor);
+						}
+					}
+				}
+				
+				if (keywords==null)
+					keywords=summarizer.getKeywords();
+			}
+			
+			cummulativeScores= Misc.sortByValue(cummulativeScores);
+			
+			List<SentencesChunkAnnotation> summaryChunkAnnotations;
 			if (summarySize.endsWith("%")){
 				Double percent=Double.parseDouble(summarySize.replace("%", ""));
 				logger.info("Going to create " + percent + "% summary");
-				summarySentences=Misc.getSummary(relevanceSummarizerScores, jcas, percent);
+				summaryChunkAnnotations=Misc.getSummary(cummulativeScores, jcas, percent);
 			}
 			else{
 				Integer cnt=Integer.parseInt(summarySize);
 				logger.info("Going to create " + cnt + " sentences summary");
-				summarySentences=Misc.getSummary(relevanceSummarizerScores, jcas,cnt);
+				summaryChunkAnnotations=Misc.getSummary(cummulativeScores, jcas,cnt);
 			}
+			
+			float bestScore=0;
+			float cummulativeScore=0;
+			if (summaryChunkAnnotations.size()>0){
+				bestScore=cummulativeScores.get(summaryChunkAnnotations.get(0));
+				for (SentencesChunkAnnotation sca:summaryChunkAnnotations)
+					cummulativeScore+=cummulativeScores.get(sca);
+			}
+			
 			if (orderOfSentences.equals("byPosition")){
 				// sort summarySentences by position
 				logger.info("Sorting by position");
-				Misc.sortByPosition(summarySentences);	
+				Misc.sortByPosition(summaryChunkAnnotations);
+				
 			}
-			List<String> keywords= rm.getKeywords();
+			
 			ret= new SummarizedDocument();
 			ret.setKeywords(keywords);
 			ret.setId(article.getId());
 			ret.setTitle(article.getTitle());
+			ret.setBestSentenceScore(bestScore);
+			ret.setCummulativeScore(cummulativeScore);
 			StringBuilder summaryBuilder=new StringBuilder();
-			for(SentencesChunkAnnotation s:summarySentences) {
+			for(SentencesChunkAnnotation s:summaryChunkAnnotations) {
 				summaryBuilder.append(s.getCoveredText());
-				summaryBuilder.append("&nbsp;");
+				summaryBuilder.append(" ");
 			}
-			ret.setSummary(summaryBuilder.toString());
+			String summary=summaryBuilder.toString().trim();
+			if (summary.isEmpty())
+				summary="-";
+			ret.setSummary(summary);
+			
 			
 			// create text with selected sentences in bold
 			ttBuilder=new StringBuilder();
@@ -113,6 +160,7 @@ public class AggregateSummarizer {
 		return ret;
 	}
 	
+		
 	private JCas doNLP(String text){
 		if (!CoreNLPUIMA.isInitialized()){
 			logger.error("NLP component is not properly initialized");
@@ -124,15 +172,14 @@ public class AggregateSummarizer {
 	}
 	
 	private void releaseNLPResource(JCas jcas){
-		logger.info("Releasing NLP resources...");
+		logger.debug("Releasing NLP resources...");
 		if (jcas!=null){
 			coreNLP.releaseCas(jcas);
-			logger.info("Done.");
+			logger.debug("Done.");
 		}
 		else
 			logger.info("nlpResponse is null");
 	}
-	
 	
 
 }

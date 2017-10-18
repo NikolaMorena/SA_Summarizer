@@ -51,7 +51,7 @@ public class SolrClient {
 		query.set("qf", queryFields.replaceAll(",", " "));
 		query.set("fl", outputFields);
 		query.set("wt", "json");
-		query.set("rows", "10");
+		query.set("rows", "1");
 		
 		
 		try {

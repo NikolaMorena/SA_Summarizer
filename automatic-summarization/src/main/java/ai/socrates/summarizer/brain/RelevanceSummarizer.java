@@ -25,10 +25,9 @@ public class RelevanceSummarizer implements ISummarizer{
 	private List<String> keywords= new ArrayList<>();
 
 	@Override
-	public Map<SentencesChunkAnnotation, Double> summarize(JCas jcas, JCas jcasQ, int skipCount) {
-		Map<SentencesChunkAnnotation, Double> ret= new LinkedHashMap<SentencesChunkAnnotation, Double>();
-		
-		
+	public Map<SentencesChunkAnnotation, Float> summarize(JCas jcas, JCas jcasQ, int skipCount) {
+		logger.info("Starting summarization");
+		Map<SentencesChunkAnnotation, Float> ret= new LinkedHashMap<SentencesChunkAnnotation, Float>();	
 		Map<String, Integer> vectorToCompare=new HashMap<String, Integer>();
 		AnnotationIndex<Annotation> tIndex;
 		if (jcasQ==null) // get document vector 
@@ -48,12 +47,12 @@ public class RelevanceSummarizer implements ISummarizer{
 				}
 			}
 		}
-		logger.info("Vector to compare size: "  + vectorToCompare.size());
+		logger.debug("Vector to compare size: "  + vectorToCompare.size());
 		Map<String, Integer> vectorToCompareSorted= Misc.sortByValue(vectorToCompare);
 		int cnt=1;
 		
 		for(Entry<String, Integer> tEntry : vectorToCompareSorted.entrySet()){
-			logger.info(tEntry.getKey() + " : " + tEntry.getValue());
+			logger.debug(tEntry.getKey() + " : " + tEntry.getValue());
 			keywords.add(tEntry.getKey());
 			if (cnt++>=10)
 				break;
@@ -81,9 +80,12 @@ public class RelevanceSummarizer implements ISummarizer{
 					}
 				}
 			}
-			double similarity=0;
-			if (!sentenceVector.isEmpty())
-				similarity=CosineSimilarity.similarity(sentenceVector, vectorToCompare);
+			float similarity=0;
+			if (!sentenceVector.isEmpty()){
+				similarity=(float) CosineSimilarity.similarity(sentenceVector, vectorToCompare);
+				logger.debug(""+similarity);
+			}
+			
 			else
 				logger.warn("Vector for sentence chunk '" + s.getCoveredText() + "' is empty" );
 //			logger.info(""+similarity);
@@ -109,6 +111,11 @@ public class RelevanceSummarizer implements ISummarizer{
 			}
 		}
 		return ret;
+	}
+
+	@Override
+	public Boolean isBoosterOnly() {
+		return false;
 	}
 
 }

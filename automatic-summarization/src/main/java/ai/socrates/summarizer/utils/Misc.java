@@ -24,6 +24,10 @@ import ai.socrates.summarizer.types.uima.TokenAnnotation;
 
 public class Misc {
 	private static final Logger logger =LoggerFactory.getLogger(Misc.class);
+	
+	public static String getSearchQuery(String userInput){
+		return userInput;
+	}
 
 	public static <K, V extends Comparable<? super V>> Map<K, V> sortByValue( Map<K, V> map ) {
 		List<Map.Entry<K, V>> list = new LinkedList<Map.Entry<K, V>>( map.entrySet() );
@@ -40,7 +44,7 @@ public class Misc {
 		return result;
 	}
 
-	public static List<SentencesChunkAnnotation> getSummary(Map<SentencesChunkAnnotation, Double> relevanceSummarizerScores, JCas jcas, double percentageOfOriginalDocument) {
+	public static List<SentencesChunkAnnotation> getSummary(Map<SentencesChunkAnnotation, Float> relevanceSummarizerScores, JCas jcas, double percentageOfOriginalDocument) {
 		List<SentencesChunkAnnotation> ret = new ArrayList<>();
 
 		if(relevanceSummarizerScores == null || relevanceSummarizerScores.size() == 0 || jcas == null) {
@@ -55,7 +59,7 @@ public class Misc {
 		double totalLengthDoc = jcas.getDocumentText().length();
 		double totalLengthSummary = 0d;
 		Map<Integer, SentencesChunkAnnotation> selectedStartPositions= new LinkedHashMap<>(); // only one of the chunks that start at the same position may be selected 
-		for(Entry<SentencesChunkAnnotation, Double> sEntry : relevanceSummarizerScores.entrySet()) {
+		for(Entry<SentencesChunkAnnotation, Float> sEntry : relevanceSummarizerScores.entrySet()) {
 			if (sEntry.getValue()==0f)
 				break;
 			SentencesChunkAnnotation currentChunk= sEntry.getKey();
@@ -83,10 +87,10 @@ public class Misc {
 		return getChunkListFromMap(selectedStartPositions);
 	}
 
-	public static List<SentencesChunkAnnotation> getSummary(Map<SentencesChunkAnnotation, Double> orderedSentences_SemScore, JCas jcas, int sentCount) {
+	public static List<SentencesChunkAnnotation> getSummary(Map<SentencesChunkAnnotation, Float> orderedSentences_SemScore, JCas jcas, int sentCount) {
 		Map<Integer, SentencesChunkAnnotation> selectedStartPositions= new LinkedHashMap<>(); // only one of the chunks that start at the same position may be selected 
 		int cnt=0;
-		for(Entry<SentencesChunkAnnotation, Double> sEntry : orderedSentences_SemScore.entrySet()) {
+		for(Entry<SentencesChunkAnnotation, Float> sEntry : orderedSentences_SemScore.entrySet()) {
 			if (sEntry.getValue()==0f)
 				break;
 			SentencesChunkAnnotation currentChunk= sEntry.getKey();
