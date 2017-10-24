@@ -44,57 +44,18 @@ public class Misc {
 		return result;
 	}
 
-	public static List<SentencesChunkAnnotation> getSummary(Map<SentencesChunkAnnotation, Float> relevanceSummarizerScores, JCas jcas, double percentageOfOriginalDocument) {
-		List<SentencesChunkAnnotation> ret = new ArrayList<>();
-
-		if(relevanceSummarizerScores == null || relevanceSummarizerScores.size() == 0 || jcas == null) {
-			return null;
-		}
-
-		if(percentageOfOriginalDocument < 0 || percentageOfOriginalDocument > 100) {
-			percentageOfOriginalDocument=20d;
-			logger.warn("Length percentage of summary wrongly defined - set to 20%.");
-		}
-
-		double totalLengthDoc = jcas.getDocumentText().length();
-		double totalLengthSummary = 0d;
+	public static List<SentencesChunkAnnotation> getVariableSummary(
+			Map<SentencesChunkAnnotation, Float> orderedSentences_SemScore, JCas jcas, float minScore, int maxSentences) {
 		Map<Integer, SentencesChunkAnnotation> selectedStartPositions= new LinkedHashMap<>(); // only one of the chunks that start at the same position may be selected 
-		for(Entry<SentencesChunkAnnotation, Float> sEntry : relevanceSummarizerScores.entrySet()) {
-			if (sEntry.getValue()==0f)
-				break;
-			SentencesChunkAnnotation currentChunk= sEntry.getKey();
-
-			if (selectedStartPositions.containsKey(currentChunk.getBegin())){
-				SentencesChunkAnnotation addedChunk=selectedStartPositions.get(currentChunk.getBegin());
-				if ((addedChunk.getEnd()-addedChunk.getBegin())>(currentChunk.getEnd()-currentChunk.getBegin())){
-					logger.info("Skipped as there's already a selected chunk starting at the same position: " + currentChunk.getCoveredText());
-				}
-				else{
-					selectedStartPositions.put(currentChunk.getBegin(), currentChunk);
-					totalLengthSummary += currentChunk.getCoveredText().length()-addedChunk.getCoveredText().length();
-					logger.info("Replacing previous shorter chunk starting at the same position: " + currentChunk.getCoveredText());
-				}
-			}
-			else{
-				selectedStartPositions.put(currentChunk.getBegin(), currentChunk);
-				totalLengthSummary += currentChunk.getCoveredText().length();
-				logger.debug("Adding chunk to map: " + currentChunk.getCoveredText());
-			}
-			if( ((totalLengthSummary / totalLengthDoc) * 100d) > percentageOfOriginalDocument) {
-				break;
-			}
-		}
-		return getChunkListFromMap(selectedStartPositions);
-	}
-
-	public static List<SentencesChunkAnnotation> getSummary(Map<SentencesChunkAnnotation, Float> orderedSentences_SemScore, JCas jcas, int sentCount) {
-		Map<Integer, SentencesChunkAnnotation> selectedStartPositions= new LinkedHashMap<>(); // only one of the chunks that start at the same position may be selected 
+		boolean atLeastOneChunkAdded=false;
 		int cnt=0;
 		for(Entry<SentencesChunkAnnotation, Float> sEntry : orderedSentences_SemScore.entrySet()) {
 			if (sEntry.getValue()==0f)
 				break;
+			if (sEntry.getValue()<minScore && atLeastOneChunkAdded)
+				break;
 			SentencesChunkAnnotation currentChunk= sEntry.getKey();
-			int sentencesLeft=sentCount-cnt;
+			int sentencesLeft=maxSentences-cnt;
 			if (currentChunk.getSentencesCount()<=sentencesLeft){
 				if (selectedStartPositions.containsKey(currentChunk.getBegin())){
 					SentencesChunkAnnotation addedChunk=selectedStartPositions.get(currentChunk.getBegin());
@@ -111,14 +72,16 @@ public class Misc {
 					selectedStartPositions.put(currentChunk.getBegin(), currentChunk);
 				cnt+=currentChunk.getSentencesCount();
 				logger.debug("Adding chunk to map: " + currentChunk.getCoveredText());
+				atLeastOneChunkAdded=true;
 			}
-			if (cnt>=sentCount)
+			if (cnt>=maxSentences)
 				break;
+
 		}
 
 		return getChunkListFromMap(selectedStartPositions);
 	}
-
+	
 	private static List<SentencesChunkAnnotation> getChunkListFromMap(Map<Integer, SentencesChunkAnnotation> selectedStartPositions){
 		List<SentencesChunkAnnotation> ret = new LinkedList<>();
 		for (Integer i:selectedStartPositions.keySet()){

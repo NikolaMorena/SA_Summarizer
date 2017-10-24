@@ -83,17 +83,8 @@ public class AggregateSummarizer {
 			cummulativeScores= Misc.sortByValue(cummulativeScores);
 			
 			List<SentencesChunkAnnotation> summaryChunkAnnotations;
-			if (summarySize.endsWith("%")){
-				Double percent=Double.parseDouble(summarySize.replace("%", ""));
-				logger.info("Going to create " + percent + "% summary");
-				summaryChunkAnnotations=Misc.getSummary(cummulativeScores, jcas, percent);
-			}
-			else{
-				Integer cnt=Integer.parseInt(summarySize);
-				logger.info("Going to create " + cnt + " sentences summary");
-				summaryChunkAnnotations=Misc.getSummary(cummulativeScores, jcas,cnt);
-			}
-			
+			summaryChunkAnnotations= Misc.getVariableSummary(cummulativeScores, jcas, 0.4f, 3);
+									
 			float bestScore=0;
 			float cummulativeScore=0;
 			if (summaryChunkAnnotations.size()>0){
@@ -121,34 +112,9 @@ public class AggregateSummarizer {
 				summaryBuilder.append(" ");
 			}
 			String summary=summaryBuilder.toString().trim();
-			if (summary.isEmpty())
-				summary="-";
+			//if (summary.isEmpty())
+			//	summary="-";
 			ret.setSummary(summary);
-			
-			
-			// create text with selected sentences in bold
-			ttBuilder=new StringBuilder();
-			AnnotationIndex<Annotation> sIndex = jcas.getAnnotationIndex(SentenceAnnotation.type);
-			FSIterator<Annotation> sIter = sIndex.iterator();
-			int skipCount=titleStrength;
-			while (sIter.hasNext()) {
-				SentenceAnnotation s = (SentenceAnnotation)sIter.next();
-				if (skipCount>0){
-					skipCount--;
-					continue;
-				}
-				if (s.getSelectedForSummary()){
-					ttBuilder.append("<B>");
-					ttBuilder.append(s.getCoveredText());
-					ttBuilder.append("&nbsp;");
-					ttBuilder.append("</B>");
-				}
-				else{
-					ttBuilder.append(s.getCoveredText());
-					ttBuilder.append("&nbsp;");
-				}
-			}
-			ret.setText(ttBuilder.toString());
 		}
 		catch(Exception ex){
 			logger.error(ex.getMessage());

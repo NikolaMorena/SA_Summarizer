@@ -51,7 +51,10 @@ public class SentencesChunksDetection extends JCasAnnotator_ImplBase {
 			currentSentence = (SentenceAnnotation) sentIterator.next();
 			String sentenceTextLowercased=currentSentence.getCoveredText().toLowerCase();
 			boolean isDependent=sentenceTextLowercased.matches(".*\\b(however|by then)\\b.*");
-			isDependent=isDependent || sentenceTextLowercased.matches("(but|therefore|then|ironically|his|her|their|these|other|he|she|they|this)\\b.*");
+			// bullet chars
+			isDependent=isDependent || sentenceTextLowercased.matches("[\u2022,\u2023,\u25E6,\u2043,\u2219].*");
+			isDependent=isDependent || sentenceTextLowercased.matches("(but|therefore|then|ironically|his|her|their|these|other|he|she|it|they|this|for example)\\b.*");
+			//isDependent=isDependent || sentenceTextLowercased.startsWith("•");
 			int firstCommaPos=sentenceTextLowercased.indexOf(",");
 			if (firstCommaPos>-1 && !isDependent){
 				for(String demonstrative:demonstratives){
