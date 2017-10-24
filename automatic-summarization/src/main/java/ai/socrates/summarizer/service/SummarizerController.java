@@ -44,14 +44,15 @@ public class SummarizerController {
 	@RequestMapping(value="/summarize", method = {RequestMethod.GET}, produces=MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<?> summarizeAllArticles(
 			@RequestParam(value="query", defaultValue="") String userInput,
-			@RequestParam(value="summary_size", defaultValue="5") String summarySize,
+			@RequestParam(value="max_summary_size", defaultValue="5") int maxSummarySize,
+			@RequestParam(value="min_relevancy_score", defaultValue="0.4") float minRelevancyScore,
 			@RequestParam(value="title_strength", defaultValue="1") int titleStrength,
 			@RequestParam(value="boost_by_position", defaultValue="false") boolean boostByOrder,
 			@RequestParam(value="order_of_sentences", defaultValue="byPosition") String orderOfSentences,
 			@RequestParam(value="client_id", defaultValue="2") int clientId
 			){
 		logger.info("GET request received, user input is " + userInput);
-		logger.info("Summary size is " + summarySize);
+		logger.info("Max Summary size is " + maxSummarySize);
 		try{
 			Map<ISummarizer, Float> summarizers= getSummarizers(boostByOrder);
 			String query=Misc.getSearchQuery(userInput);
@@ -72,7 +73,7 @@ public class SummarizerController {
 				article.setText(sectionText);
 				try{
 					AggregateSummarizer summarizer= new AggregateSummarizer(summarizers);
-					SummarizedDocument sd=summarizer.getSummary(article, query, summarySize, titleStrength, boostByOrder, orderOfSentences);
+					SummarizedDocument sd=summarizer.getSummary(article, query, maxSummarySize, minRelevancyScore, titleStrength, boostByOrder, orderOfSentences);
 					mds.getSummarizedDocuments().add(sd);
 					if (!sd.getSummary().isEmpty())
 						if (firstSummary){ // first summary only
@@ -104,14 +105,15 @@ public class SummarizerController {
 	public ResponseEntity<?> summarizeText(
 			@RequestParam(value="text", defaultValue="") String text,
 			@RequestParam(value="query", defaultValue="") String query,
-			@RequestParam(value="summary_size", defaultValue="5") String summarySize,
+			@RequestParam(value="max_summary_size", defaultValue="5") int maxSummarySize,
+			@RequestParam(value="min_relevancy_score", defaultValue="0.4") float minRelevancyScore,
 			@RequestParam(value="title_strength", defaultValue="1") int titleStrength,
 			@RequestParam(value="boost_by_position", defaultValue="false") boolean boostByOrder,
 			@RequestParam(value="order_of_sentences", defaultValue="byPosition") String orderOfSentences,
 			@RequestParam(value="client_id", defaultValue="2") int clientId
 			){
 		logger.info("GET request received, text is " + text);
-		logger.info("Summary size is " + summarySize);
+		logger.info("Max Summary size is " + maxSummarySize);
 		String ret="";
 		try{
 			Map<ISummarizer, Float> summarizers= getSummarizers(boostByOrder);
@@ -122,7 +124,7 @@ public class SummarizerController {
 			article.setText(text);
 			try{
 				AggregateSummarizer summarizer= new AggregateSummarizer(summarizers);
-				SummarizedDocument sd=summarizer.getSummary(article, query, summarySize, titleStrength, boostByOrder, orderOfSentences);
+				SummarizedDocument sd=summarizer.getSummary(article, query, maxSummarySize, minRelevancyScore, titleStrength, boostByOrder, orderOfSentences);
 				if (sd.getSummary().isEmpty())
 					logger.warn("Summary is empty");
 				ret=sd.getSummary();

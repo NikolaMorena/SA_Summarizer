@@ -30,7 +30,7 @@ public class AggregateSummarizer {
 	}
 	
 	
-	public SummarizedDocument getSummary(Article article, String query, String summarySize, int titleStrength, boolean boostByOrder, String orderOfSentences){
+	public SummarizedDocument getSummary(Article article, String query, int maxSummarySize, float minRelevancyScore, int titleStrength, boolean boostByOrder, String orderOfSentences){
 		SummarizedDocument ret = null;
 		JCas jcas=null;
 		JCas jcasQ=null;
@@ -83,7 +83,7 @@ public class AggregateSummarizer {
 			cummulativeScores= Misc.sortByValue(cummulativeScores);
 			
 			List<SentencesChunkAnnotation> summaryChunkAnnotations;
-			summaryChunkAnnotations= Misc.getVariableSummary(cummulativeScores, jcas, 0.4f, 3);
+			summaryChunkAnnotations= Misc.getVariableSummary(cummulativeScores, jcas, minRelevancyScore, maxSummarySize);
 									
 			float bestScore=0;
 			float cummulativeScore=0;
